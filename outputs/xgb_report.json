@@ -1,0 +1,14 @@
+{
+  "rain": {
+    "val_rmse_real": 10.651314735412598,
+    "best_iter": 167
+  },
+  "tmax": {
+    "val_rmse_real": 1.9821131229400635,
+    "best_iter": 144
+  },
+  "tmin": {
+    "val_rmse_real": 1.4591206312179565,
+    "best_iter": 205
+  }
+}

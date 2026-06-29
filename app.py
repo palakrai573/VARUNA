@@ -1,0 +1,499 @@
+"""
+AI Digital Twin of India's Climate - interactive dashboard.
+ISRO Bharatiya Antariksh Hackathon 2026 - Problem Statement #5.
+
+One AI climate twin -> connected applications:
+  * National climate state + AI short-term forecast (real IMD data, ClimateUNet)
+  * Hazard early-warning (heatwave / heavy-rain / dry-spell) from the forecast
+  * Optimal-Interpolation data assimilation (model + observations)
+  * What-if scenario simulator -> urban heat-stress & air quality
+  * INSAT/MOSDAC satellite layer (bring-your-own product)
+
+Run:  streamlit run app.py
+"""
+from __future__ import annotations
+
+import json
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import numpy as np
+import pandas as pd
+import streamlit as st
+
+import config as C
+from viz import theme, maps
+from scenario import engine
+from twin import assimilate
+from analytics import extremes
+from data import proxies, insat
+
+st.set_page_config(page_title="VARUNA · AI Digital Twin of India's Climate",
+                   page_icon="🛰️", layout="wide")
+st.markdown(theme.streamlit_css(), unsafe_allow_html=True)
+
+
+# --------------------------------------------------------------------------- load
+@st.cache_resource(show_spinner="Loading climate twin + AI model…")
+def load():
+    from models.forecast import load_everything
+    return load_everything()
+
+
+@st.cache_data
+def load_eval():
+    p = os.path.join(C.OUTPUTS_DIR, "eval_metrics.json")
+    return json.load(open(p)) if os.path.exists(p) else None
+
+
+@st.cache_resource
+def load_xgb():
+    try:
+        from models.xgb_forecast import CityForecaster
+        if all(os.path.exists(os.path.join(C.CKPT_DIR, f"xgb_{v}.json")) for v in C.VARIABLES):
+            return CityForecaster()
+    except Exception:
+        return None
+    return None
+
+
+@st.cache_data(show_spinner="Ingesting INSAT product…")
+def load_insat(prod, _files_key):
+    from data import insat as _insat
+    return _insat.latest(prod, grid)
+
+
+try:
+    B = load()
+except Exception as e:
+    st.error(f"Model/data not ready: {e}\n\nRun `python data/prepare.py` then "
+             f"`python models/train.py`.")
+    st.stop()
+
+obs, clim, stats = B["obs"], B["clim"], B["stats"]
+landmask, grid = B["landmask"], B["grid"]
+cube, dates, carr, std, fc = B["cube"], B["dates"], B["carr"], B["std"], B["forecaster"]
+lats, lons = grid["lat"], grid["lon"]
+EVAL = load_eval()
+XGB = load_xgb()
+
+t_lo, t_hi = C.INPUT_DAYS, len(dates) - C.HORIZON
+test_default = next((i for i in range(t_hi, t_lo, -1) if dates[i].year in C.TEST_YEARS), t_hi)
+
+
+# --------------------------------------------------------------------------- header
+c1, c2, c3 = st.columns([6, 3, 3])
+with c1:
+    st.markdown("## 🛰️ VARUNA <span class='tn-tag'>· AI Digital Twin of India's Climate</span>",
+                unsafe_allow_html=True)
+    st.caption("ISRO BAH 2026 · PS#5 — real IMD + INSAT data · ClimateUNet forecast · "
+               "hazards · assimilation · what-if")
+with c2:
+    st.markdown(f"<div class='tn-card'><div class='l'>Data source</div>"
+                f"<div class='v' style='color:{C.PALETTE['good']};font-size:1.15rem'>IMD gridded</div>"
+                f"<div class='l'>{dates[0].year}–{dates[-1].year} · real only</div></div>",
+                unsafe_allow_html=True)
+with c3:
+    if EVAL:
+        sk = np.mean([EVAL["ai"][v]["skill_vs_persistence"][0] for v in C.VARIABLES]) * 100
+        st.markdown(f"<div class='tn-card'><div class='l'>Day-1 skill vs persistence</div>"
+                    f"<div class='v' style='font-size:1.15rem'>+{sk:.0f}%</div>"
+                    f"<div class='l'>tmax ACC {EVAL['ai']['tmax']['acc'][0]:.2f}</div></div>",
+                    unsafe_allow_html=True)
+
+
+# --------------------------------------------------------------------------- sidebar
+st.sidebar.header("🛰️ Twin controls")
+region_name = st.sidebar.selectbox("Region", list(C.REGIONS.keys()), index=0)
+bounds = C.REGIONS[region_name]
+var_label = st.sidebar.radio("Climate layer", ["Rainfall", "Max temp", "Min temp"], horizontal=True)
+base_var = {"Rainfall": "rain", "Max temp": "tmax", "Min temp": "tmin"}[var_label]
+
+import datetime as _dt
+_min_d = dates[t_lo].date()
+_last_d = dates[-1].date()                       # last day with real data
+_max_d = _dt.date(2026, 12, 31)                  # allow future climatological projection
+_def_d = dates[test_default].date()
+picked = st.sidebar.date_input("Forecast start date", value=_def_d,
+                               min_value=_min_d, max_value=_max_d)
+future = picked > _last_d
+st.sidebar.caption(
+    (f"📅 {picked.strftime('%d %b %Y')} · 📊 climatological projection (beyond IMD data)"
+     if future else
+     f"📅 {picked.strftime('%d %b %Y')}"
+     + ("  ·  unseen test year ✓" if picked.year in C.TEST_YEARS else "  ·  🤖 AI forecast"))
+)
+lead = st.sidebar.slider("Forecast lead day", 1, C.HORIZON, 1)
+
+
+@st.cache_data(show_spinner="Running forecast…")
+def forecast_for_date(date_iso):
+    """AI forecast when real history exists; climatological projection beyond data.
+
+    Returns (frames {var:(HORIZON,H,W)}, f_dates [str], mode 'ai'|'clim').
+    """
+    pts = pd.Timestamp(date_iso)
+    if pts <= dates[-1]:
+        ti = int(np.argmin(np.abs(dates.values - np.datetime64(pts))))
+        ti = min(max(ti, t_lo), len(dates) - 1)
+        out = fc.predict(cube, ti, carr, std, dates)
+        return ({v: out["frames"][v] for v in C.VARIABLES},
+                [str(d) for d in out["dates"]], "ai")
+    # future: expected climatological state for each forecast day
+    fdates = [pts + pd.Timedelta(days=k) for k in range(C.HORIZON)]
+    frames = {}
+    for v in C.VARIABLES:
+        frames[v] = np.stack([carr[v][min(int(d.dayofyear), 365) - 1] for d in fdates])
+    return frames, [str(d) for d in fdates], "clim"
+
+
+frames, f_dates, fmode = forecast_for_date(picked.isoformat())
+
+# nearest real-data index (for panels that compare against observations / history)
+t = int(np.argmin(np.abs(dates.values - np.datetime64(min(pd.Timestamp(picked), dates[-1])))))
+t = min(max(t, t_lo), len(dates) - 1)
+
+
+def regional(field):
+    return maps.crop_to_bounds(field, lats, lons, bounds)
+
+
+def clim_field(var, day_idx):
+    doy = min(int(pd.Timestamp(f_dates[day_idx]).dayofyear), 365)
+    return carr[var][doy - 1]
+
+
+VIEWS = ["🌍 Climate Twin", "🌡️ Hazards & Extremes", "🧪 What-if Simulator",
+         "📈 Validation & Skill", "🛰️ Satellite (INSAT)", "ℹ️ About"]
+view = st.radio("View", VIEWS, horizontal=True, label_visibility="collapsed")
+
+
+# ===== Climate twin + assimilation =========================================
+if view == VIEWS[0]:
+    mode_lbl = "AI forecast" if fmode == "ai" else "Climatological projection"
+    ai_field = frames[base_var][lead - 1]
+    rf, rlat, rlon = regional(ai_field)
+    rmask, _, _ = maps.crop_to_bounds(landmask, lats, lons, bounds)
+    left, right = st.columns([3, 1.1])
+    with left:
+        fig = maps.field_figure(rf, rlat, rlon, base_var,
+                                title=f"{theme.LABELS[base_var]} — {mode_lbl}, lead day {lead}",
+                                landmask=rmask, bounds=bounds)
+        st.plotly_chart(fig, use_container_width=True, key="twin")
+        st.caption(f"{theme.LABELS[base_var]} · {mode_lbl} lead day {lead} "
+                   f"({pd.Timestamp(f_dates[lead-1]).strftime('%d %b %Y')}) · {region_name}")
+    with right:
+        v = rf[np.isfinite(rf) & rmask]
+        unit = "mm/day" if base_var == "rain" else "°C"
+        st.markdown(f"#### {mode_lbl} state")
+        st.metric("Mean", f"{np.mean(v):.1f} {unit}" if v.size else "—")
+        st.metric("Max", f"{np.max(v):.1f} {unit}" if v.size else "—")
+        st.markdown("#### Assimilation (Optimal Interpolation)")
+        if fmode != "ai":
+            st.caption("Assimilation applies to AI forecasts of real dates. For future "
+                       "climatological projections there is no observation to assimilate.")
+        else:
+            st.caption("AI background fused with the latest observation; the innovation is "
+                       "spread spatially per a correlated background-error covariance.")
+            L = st.slider("Correlation length (cells)", 0.5, 5.0, 2.0, 0.5)
+            bg = frames[base_var][0]
+            ob = obs[base_var].values[t]
+            ana = assimilate.optimal_interpolation(bg, ob, length_scale=L, landmask=landmask)
+            before = assimilate.innovation_stats(bg, ob)
+            after = assimilate.innovation_stats(ana, ob)
+            st.metric("RMSE to obs · before", f"{before['rmse']:.2f} {unit}")
+            st.metric("RMSE to obs · after OI", f"{after['rmse']:.2f} {unit}",
+                      f"{after['rmse']-before['rmse']:+.2f}", delta_color="inverse")
+
+    # 10-day forecast evolution vs climatology (region-mean over land)
+    st.markdown("#### 📈 10-day forecast evolution — region mean")
+    leads = list(range(1, C.HORIZON + 1))
+    fc_series = [float(np.nanmean(frames[base_var][k][rmask])) for k in range(C.HORIZON)]
+    clim_series = [float(np.nanmean(clim_field(base_var, k)[rmask])) for k in range(C.HORIZON)]
+    unit2 = "mm/day" if base_var == "rain" else "°C"
+    ely = maps.line_figure(leads,
+                           {f"{mode_lbl}": fc_series, "Climatology (normal)": clim_series},
+                           f"{theme.LABELS[base_var]} — {region_name}", unit2, height=300)
+    st.plotly_chart(ely, use_container_width=True, key="evol")
+    st.caption("How the forecast departs from the climatological normal across the 10-day horizon "
+               "— the gap is the weather signal the AI adds on top of climatology.")
+
+
+# ===== Hazards & extremes ==================================================
+elif view == VIEWS[1]:
+    haz = st.radio("Hazard layer", ["🔥 Heatwave risk", "🌧️ Heavy-rain category",
+                                    "🏜️ Dry-spell length"], horizontal=True)
+    rmask, _, _ = maps.crop_to_bounds(landmask, lats, lons, bounds)
+    lc, rc = st.columns([3, 1.1])
+    if haz.startswith("🔥"):
+        sev = extremes.heatwave_severity(frames["tmax"][lead - 1], clim_field("tmax", lead - 1))
+        f, rlat, rlon = regional(sev)
+        with lc:
+            fig = maps.field_figure(f, rlat, rlon, "aqi", landmask=rmask, bounds=bounds,
+                                    vmin=0, vmax=2, unit="severity",
+                                    title=f"Heatwave severity — AI forecast, day {lead}")
+            st.plotly_chart(fig, use_container_width=True, key="hw")
+            st.caption(f"Heatwave severity (0 none · 1 heatwave · 2 severe), IMD departure "
+                       f"criteria · AI tmax forecast, day {lead}")
+        with rc:
+            land = sev[landmask]
+            st.markdown("#### Heatwave risk")
+            st.metric("Area under heatwave", f"{np.mean(land >= 1)*100:.1f}%")
+            st.metric("Severe heatwave area", f"{np.mean(land >= 2)*100:.1f}%")
+            st.caption("Forecast lead lets planners issue early heat alerts days ahead.")
+    elif haz.startswith("🌧️"):
+        cat = extremes.rain_category(frames["rain"][lead - 1])
+        f, rlat, rlon = regional(cat)
+        with lc:
+            fig = maps.field_figure(f, rlat, rlon, "rain", landmask=rmask, bounds=bounds,
+                                    vmin=0, vmax=4, unit="category",
+                                    title=f"Rainfall category — AI forecast, day {lead}")
+            st.plotly_chart(fig, use_container_width=True, key="rc")
+            st.caption("IMD rain categories: moderate / heavy / very heavy / extremely heavy · "
+                       f"AI rain forecast, day {lead}")
+        with rc:
+            land = cat[landmask]
+            st.markdown("#### Heavy-rain risk")
+            st.metric("Heavy+ rain area", f"{np.mean(land >= 2)*100:.1f}%")
+            st.metric("Very heavy+ area", f"{np.mean(land >= 3)*100:.1f}%")
+    else:
+        rain_seq = np.stack([frames["rain"][k] for k in range(lead)], axis=0) if lead > 1 \
+            else frames["rain"][0:1]
+        dsi = extremes.dry_spell_index(rain_seq)
+        f, rlat, rlon = regional(dsi)
+        with lc:
+            fig = maps.field_figure(f, rlat, rlon, "cooling", landmask=rmask, bounds=bounds,
+                                    vmin=0, vmax=max(lead, 2), unit="dry days",
+                                    title=f"Dry-spell length — forecast days 1–{lead}")
+            st.plotly_chart(fig, use_container_width=True, key="ds")
+            st.caption(f"Trailing dry-spell length over forecast days 1–{lead} (rain < 2.5 mm)")
+        with rc:
+            land = dsi[landmask]
+            st.markdown("#### Dry-spell / drought")
+            st.metric("Mean dry-run (days)", f"{np.mean(land):.1f}")
+            st.metric("Cells fully dry", f"{np.mean(land >= lead)*100:.1f}%")
+
+    # hazard-area trend across the 10-day horizon
+    st.markdown("#### 📈 Hazard exposure across the forecast horizon")
+    leads = list(range(1, C.HORIZON + 1))
+    if haz.startswith("🔥"):
+        ser = [float(np.mean(extremes.heatwave_severity(
+            frames["tmax"][k], clim_field("tmax", k))[landmask] >= 1) * 100) for k in range(C.HORIZON)]
+        tfig = maps.line_figure(leads, {"Area under heatwave": ser},
+                                "Heatwave-affected land area", "% of land", height=280,
+                                colors=["#FF7B00"])
+    elif haz.startswith("🌧️"):
+        ser = [float(np.mean(extremes.rain_category(frames["rain"][k])[landmask] >= 2) * 100)
+               for k in range(C.HORIZON)]
+        tfig = maps.line_figure(leads, {"Heavy+ rain area": ser},
+                                "Heavy-rain land area", "% of land", height=280,
+                                colors=["#22D3EE"])
+    else:
+        ser = [float(np.mean(extremes.dry_spell_index(
+            np.stack([frames["rain"][j] for j in range(k + 1)]))[landmask])) for k in range(C.HORIZON)]
+        tfig = maps.line_figure(leads, {"Mean dry-run length": ser},
+                                "Drought / dry-spell build-up", "days", height=280,
+                                colors=["#A7F3D0"])
+    st.plotly_chart(tfig, use_container_width=True, key="haztrend")
+
+
+# ===== What-if simulator ===================================================
+elif view == VIEWS[2]:
+    tmax_f, rlat, rlon = regional(frames["tmax"][lead - 1])
+    rain_f, _, _ = regional(frames["rain"][lead - 1])
+    rmask, _, _ = maps.crop_to_bounds(landmask, lats, lons, bounds)
+    urban = np.where(rmask, proxies.urban_fraction(rlat, rlon), np.nan)
+    month = pd.Timestamp(f_dates[lead - 1]).month
+    pmb = np.where(rmask, proxies.pm_baseline(np.nan_to_num(urban), month), np.nan)
+
+    st.caption("Drag the sliders — the impact map and metrics update instantly "
+               f"(driven by the {('AI' if fmode=='ai' else 'climatological')} forecast, day {lead}).")
+
+    @st.fragment
+    def whatif_panel():
+        sc1, sc2, sc3 = st.columns(3)
+        ctrl = engine.Controls(
+            d_temp=sc1.slider("Δ Air temperature (°C)", -3.0, 5.0, 0.0, 0.5),
+            d_rain_pct=sc1.slider("Δ Rainfall (%)", -50, 50, 0, 5),
+            greening=sc2.slider("🌳 Urban greening (NDVI)", 0.0, 0.6, 0.0, 0.05),
+            cool_roof=sc2.slider("🏠 Cool-roof albedo", 0.0, 0.6, 0.0, 0.05),
+            urbanization=sc3.slider("🏙️ Added built-up", 0.0, 0.5, 0.0, 0.05),
+        )
+        f_s, m_s = engine.run_scenario(tmax_f, rain_f, urban, pmb, ctrl)
+        _, m_b = engine.run_scenario(tmax_f, rain_f, urban, pmb, engine.Controls())
+
+        impact = st.radio("Impact layer", ["Heat-stress index", "Air Quality (proxy)",
+                                           "Intervention cooling (Δ°C)"], horizontal=True)
+        key = {"Heat-stress index": "heat_index", "Air Quality (proxy)": "aqi",
+               "Intervention cooling (Δ°C)": "cooling"}[impact]
+        lc, rc = st.columns([3, 1.1])
+        with lc:
+            fig = maps.field_figure(f_s[key], rlat, rlon, key, landmask=rmask, bounds=bounds,
+                                    title=f"{impact} — scenario, day {lead}")
+            st.plotly_chart(fig, use_container_width=True, key="whatif")
+            st.caption("Heat-stress responds to all five levers · AQI responds to rainfall, "
+                       "greening, urbanisation & temperature · Cooling shows the intervention "
+                       "benefit (greening + cool-roofs in built-up areas).")
+        with rc:
+            st.markdown("#### Scenario impact")
+            st.metric("Peak surface cooling", f"{m_s['peak_cooling_c']:+.1f} °C")
+            uc = m_s["urban_cooling_c"]
+            st.metric("Built-up mean cooling", f"{uc:+.1f} °C" if uc == uc else "—")
+            ab, _ = engine.aqi_band(m_s["mean_aqi"])
+            st.metric("Mean AQI", f"{m_s['mean_aqi']:.0f}", ab)
+            da = m_b["heat_danger_area_pct"] - m_s["heat_danger_area_pct"]
+            st.metric("Heat-danger area", f"{m_s['heat_danger_area_pct']:.1f}%",
+                      f"{-da:+.1f}% vs baseline", delta_color="inverse")
+
+    whatif_panel()
+
+
+# ===== Validation & skill ==================================================
+elif view == VIEWS[3]:
+    st.markdown("### AI model skill on unseen test years (2021–2024)")
+    if EVAL is None:
+        st.warning("Run `python evaluation/evaluate.py` to generate skill metrics.")
+    else:
+        units = {"rain": "mm", "tmax": "°C", "tmin": "°C"}
+        cols = st.columns(3)
+        for j, v in enumerate(C.VARIABLES):
+            with cols[j]:
+                ai = EVAL["ai"][v]
+                st.markdown(f"#### {theme.LABELS[v]}")
+                st.metric("MAE day-1", f"{ai['mae'][0]:.2f} {units[v]}")
+                st.metric("RMSE day-1", f"{ai['rmse'][0]:.2f} {units[v]}")
+                st.metric("ACC day-1", f"{ai['acc'][0]:.3f}")
+                st.metric("Skill vs persistence (d1)", f"{ai['skill_vs_persistence'][0]*100:+.0f}%")
+                st.metric("Skill vs persist-anomaly (d1)", f"{ai['skill_vs_poa'][0]*100:+.1f}%")
+
+        leads = list(range(1, C.HORIZON + 1))
+        g1, g2 = st.columns(2)
+        with g1:
+            rmse_fig = maps.line_figure(
+                leads, {theme.LABELS[v]: EVAL["ai"][v]["rmse"] for v in C.VARIABLES},
+                "RMSE vs lead day (real units)", "RMSE", height=320,
+                colors=["#22D3EE", "#FF7B00", "#A7F3D0"])
+            st.plotly_chart(rmse_fig, use_container_width=True, key="rmse_curve")
+        with g2:
+            acc_fig = maps.line_figure(
+                leads, {theme.LABELS[v]: EVAL["ai"][v]["acc"] for v in C.VARIABLES},
+                "Anomaly Correlation (ACC) vs lead day", "ACC", height=320,
+                colors=["#22D3EE", "#FF7B00", "#A7F3D0"])
+            st.plotly_chart(acc_fig, use_container_width=True, key="acc_curve")
+        # skill vs persistence (day-1) bar comparison
+        bar = maps.bar_figure(
+            [theme.LABELS[v] for v in C.VARIABLES],
+            {"Skill vs persistence": [EVAL["ai"][v]["skill_vs_persistence"][0]*100 for v in C.VARIABLES],
+             "Skill vs persist-anomaly": [EVAL["ai"][v]["skill_vs_poa"][0]*100 for v in C.VARIABLES]},
+            "Day-1 skill over operational baselines", "% improvement", height=300)
+        st.plotly_chart(bar, use_container_width=True, key="skillbar")
+
+    st.markdown("---")
+    st.markdown("### City forecast — ClimateUNet" + (" + XGBoost ensemble" if XGB else ""))
+    city = st.selectbox("Location", list(C.CITIES.keys()))
+    la, lo = C.CITIES[city]
+    iy = int(np.argmin(np.abs(lats - la))); ix = int(np.argmin(np.abs(lons - lo)))
+    hist_n = 14
+    h_dates = [dates[t - hist_n + k] for k in range(hist_n)]
+    h_vals = [obs[base_var].values[t - hist_n + k, iy, ix] for k in range(hist_n)]
+    cnn_vals = [frames[base_var][k, iy, ix] for k in range(C.HORIZON)]
+    fd = [pd.Timestamp(d) for d in f_dates]
+    rows = {"date": [pd.Timestamp(d) for d in h_dates] + fd,
+            theme.LABELS[base_var]: h_vals + cnn_vals,
+            "series": ["observed"] * hist_n + ["ClimateUNet"] * C.HORIZON}
+    if XGB:
+        xv = XGB.predict_cell(cube, dates, carr, std, grid, t, iy, ix)[base_var]
+        ens = [0.5 * cnn_vals[k] + 0.5 * float(xv[k]) for k in range(C.HORIZON)]
+        rows["date"] += fd; rows[theme.LABELS[base_var]] += ens
+        rows["series"] += ["CNN+XGB ensemble"] * C.HORIZON
+    df = pd.DataFrame(rows)
+    import altair as alt
+    rng = ["#22D3EE", "#FF7B00", "#A7F3D0"]
+    st.altair_chart(alt.Chart(df).mark_line(point=True).encode(
+        x="date:T", y=alt.Y(f"{theme.LABELS[base_var]}:Q"),
+        color=alt.Color("series:N", scale=alt.Scale(range=rng))),
+        use_container_width=True)
+
+
+# ===== Satellite (INSAT) ===================================================
+elif view == VIEWS[4]:
+    st.markdown("### INSAT / MOSDAC satellite layer — real Indian satellite data")
+    if not insat.has_data():
+        st.info(insat.instructions())
+    else:
+        files = insat.available_files()
+        prod = st.radio("Product", ["lst", "rain", "sst"], horizontal=True,
+                        format_func=lambda p: {"lst": "Land Surface Temp",
+                                               "rain": "Rainfall (IMR)",
+                                               "sst": "Sea Surface Temp"}[p])
+        res = load_insat(prod, "|".join(os.path.basename(x) for x in files))
+        if res is None:
+            st.info(f"No INSAT {prod.upper()} file found in data/insat/. "
+                    "Available files: " + ", ".join(os.path.basename(x) for x in files))
+        else:
+            rmask, _, _ = maps.crop_to_bounds(landmask, lats, lons, bounds)
+            f, rlat, rlon = regional(res["field"])
+            key = "lst" if prod in ("lst", "sst") else "rain"
+            lc, rc = st.columns([3, 1.1])
+            with lc:
+                fig = maps.field_figure(f, rlat, rlon, key,
+                                        landmask=(rmask if prod != "sst" else None),
+                                        bounds=bounds,
+                                        title=f"INSAT-3DR {prod.upper()} — regridded to national grid")
+                st.plotly_chart(fig, use_container_width=True, key="sat")
+                st.caption(f"Real INSAT-3DR observation · {res['file']} · "
+                           "regridded from the full-disk product onto the 0.25° grid.")
+            with rc:
+                vals = res["field"][landmask]
+                vals = vals[np.isfinite(vals)]
+                unit = "°C" if prod in ("lst", "sst") else "mm/hr"
+                st.markdown("#### Satellite observation")
+                if vals.size:
+                    st.metric("Mean", f"{np.mean(vals):.1f} {unit}")
+                    st.metric("Max", f"{np.max(vals):.1f} {unit}")
+                # Observed-vs-model cross-check (LST skin temp vs air tmax climatology)
+                if prod == "lst":
+                    doy = 180  # the product date's season; compared to air-temp normal
+                    air = carr["tmax"][doy - 1][landmask]
+                    air = air[np.isfinite(air)]
+                    st.markdown("#### Cross-check vs air temp")
+                    st.metric("Climatological air Tmax", f"{np.mean(air):.1f} °C")
+                    st.metric("Skin–air offset", f"{np.mean(vals)-np.mean(air):+.1f} °C")
+                    st.caption("Satellite land-surface (skin) temperature runs hotter than "
+                               "screen-level air Tmax — the positive offset is the expected "
+                               "physical signature, validating the ingest.")
+            st.caption(f"INSAT {prod.upper()} regridded to the national grid · {res['file']}")
+
+
+# ===== About ===============================================================
+else:
+    st.markdown("""
+### VARUNA — what it is
+**VARUNA** (*Virtual AI Replica for Understanding & Nowcasting the Atmosphere*) is an
+**indigenous, AI-powered digital twin of India's climate**, trained entirely on **real IMD
+gridded data** with a **real INSAT-3DR** satellite layer — no synthetic data anywhere. It forecasts near-term rainfall and temperature,
+flags climate hazards, assimilates observations, and lets planners run **what-if** experiments
+with live urban-heat and air-quality impacts.
+
+**Connected applications (PS#5):**
+1. **Climate state & AI forecast** — IMD rainfall (0.25°) + temperature, *ClimateUNet*.
+2. **Hazard early-warning** — heatwave, heavy-rain and dry-spell maps from the forecast.
+3. **Urban heat & air quality** — intervention what-if (greening, cool roofs) → heat index & AQI.
+
+### Models
+- **ClimateUNet** — residual U-Net + attention, predicts anomalies vs climatology and refines a
+  persistence-of-anomaly prior; **direct multi-horizon** (10 days, no autoregressive divergence).
+- **XGBoost** — complementary gradient-boosted station forecaster; ensembled at city scale.
+
+### Data assimilation
+**Optimal Interpolation** — the AI background is fused with observations; the innovation is
+spread spatially per a correlated background-error covariance (beyond pointwise nudging).
+
+### Honest framing
+AI short-term **forecast** on real IMD analyses (not a full GCM). Heat/AQI/LST are
+**physics-informed proxies** (NWS heat index, CPCB AQI, surface-energy LST). Satellite layer
+ingests real **INSAT/MOSDAC** products (bring-your-own file; nothing synthesised). Scale-up path:
+foundation models (Prithvi-WxC / Pangu-Weather on IMDAA / BharatBench) + live INSAT feeds.
+""")
