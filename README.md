@@ -13,6 +13,11 @@
 [![Data Policy](https://img.shields.io/badge/Synthetic%20data-NONE-2DC937)](#-honest-framing)
 
 [![Live Demo](https://img.shields.io/badge/%F0%9F%A4%97%20Live%20Demo-Hugging%20Face%20Space-FFD21E)](https://huggingface.co/spaces/Aditya1002/VARUNA)
+[![Status](https://img.shields.io/badge/Status-Live-2DC937)](https://huggingface.co/spaces/Aditya1002/VARUNA)
+[![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)](#-technology-stack)
+[![Streamlit](https://img.shields.io/badge/Streamlit-1.56-FF4B4B?logo=streamlit&logoColor=white)](#-the-dashboard)
+[![License](https://img.shields.io/badge/License-MIT-blue)](#-citations--license)
+[![Reproducible](https://img.shields.io/badge/Pipeline-prepare%E2%86%92train%E2%86%92eval%E2%86%92serve-7E57C2)](#-quickstart--reproduce)
 
 *Real data only · trained on‑device · reproducible end‑to‑end · nothing fake, nothing static.*
 
@@ -41,6 +46,18 @@ and the downstream effect of an intervention **before spending a single rupee**.
 
 > 🔗 **Repository:** https://github.com/Aditya060806/VARUNA · **Live demo:** https://huggingface.co/spaces/Aditya1002/VARUNA (Hugging Face Space, Docker).
 
+### ⏱️ The 60‑second pitch
+> Point VARUNA at any day from **1981 to 2026** and it reconstructs India's climate state from real
+> IMD observations, fires a **10‑day rain + temperature forecast** from a GPU‑trained deep network,
+> blends in **INSAT‑3DR satellite** truth through **optimal‑interpolation assimilation**, flags the
+> **heatwaves, heavy‑rain and dry‑spells** hiding in that forecast, and then lets you pull a lever —
+> *"+2 °C, greener city, cool roofs"* — and watch **urban heat‑stress and air‑quality** maps redraw in
+> real time. One model, four jobs, **zero synthetic data**, all on a laptop GPU.
+
+> **Who is it for?** City planners sizing cooling shelters, disaster cells watching for heat/rain
+> hazards, water managers tracking dry spells, and researchers needing a reproducible, India‑native
+> climate sandbox — anyone who needs to *see the consequence of a decision before making it.*
+
 ---
 
 ## 📑 Table of Contents
@@ -50,20 +67,27 @@ and the downstream effect of an intervention **before spending a single rupee**.
 4. [Data Sources](#-data-sources)
 5. [Data Pipeline](#-data-pipeline)
 6. [The AI Model — ClimateUNet](#-the-ai-model--climateunet)
-7. [Companion Model — XGBoost](#-companion-model--xgboost)
-8. [Training Configuration](#-training-configuration)
-9. [Results & Validation](#-results--validation)
-10. [Digital‑Twin Assimilation](#-digital-twin-assimilation)
-11. [Connected Applications](#-connected-applications)
-12. [Satellite Integration (INSAT/MOSDAC)](#-satellite-integration-insatmosdac)
-13. [The Dashboard](#-the-dashboard)
-14. [Technology Stack](#-technology-stack)
-15. [Repository Structure](#-repository-structure)
-16. [Quickstart & Reproduce](#-quickstart--reproduce)
-17. [Honest Framing](#-honest-framing)
-18. [Scale‑up Roadmap](#-scale-up-roadmap)
-19. [Evaluation‑Parameter Map](#-evaluation-parameter-map)
-20. [Citations & License](#-citations--license)
+7. [What Makes This Technically Hard](#-what-makes-this-technically-hard)
+8. [Companion Model — XGBoost](#-companion-model--xgboost)
+9. [Training Configuration](#-training-configuration)
+10. [Results & Validation](#-results--validation)
+11. [Digital‑Twin Assimilation](#-digital-twin-assimilation)
+12. [Connected Applications](#-connected-applications)
+13. [Satellite Integration (INSAT/MOSDAC)](#-satellite-integration-insatmosdac)
+14. [The Dashboard](#-the-dashboard)
+15. [A Walk Through the Twin](#-a-walk-through-the-twin)
+16. [Technology Stack](#-technology-stack)
+17. [Repository Structure](#-repository-structure)
+18. [Quickstart & Reproduce](#-quickstart--reproduce)
+19. [Deployment](#-deployment)
+20. [Honest Framing](#-honest-framing)
+21. [Scale‑up Roadmap](#-scale-up-roadmap)
+22. [Evaluation‑Parameter Map](#-evaluation-parameter-map)
+23. [FAQ](#-faq)
+24. [Glossary](#-glossary)
+25. [Citations & License](#-citations--license)
+26. [Acknowledgements](#-acknowledgements)
+27. [Team Vandalizers](#-team-vandalizers)
 
 ---
 
@@ -92,7 +116,7 @@ and the downstream effect of an intervention **before spending a single rupee**.
 | **Day‑1 accuracy** | Tmax **MAE 0.82 °C**, Tmin **0.59 °C**, Rain **3.16 mm** · ACC **0.76** |
 | **Skill** | Beats persistence by **6–28 %**; beats persistence‑of‑anomaly on temperature |
 | **Synthetic data** | **None** — 100 % real national datasets |
-| **Deploy** | Streamlit · Hugging Face Spaces ready |
+| **Deploy** | **Live** on Hugging Face Spaces (Docker) · Streamlit dashboard |
 
 ---
 
@@ -256,6 +280,26 @@ flowchart TD
 
 ---
 
+## 🧗 What Makes This Technically Hard
+
+Climate forecasting is not "just another image task." These are the traps that sink naive models —
+and the concrete design choice in VARUNA that defuses each one.
+
+| Challenge | Why it breaks naive models | VARUNA's answer |
+|---|---|---|
+| **Autoregressive divergence** | Feeding a model its own output compounds error; rollouts blow up after ~6 days. | **Direct multi‑horizon** — all 10 lead days emitted in one forward pass, no feedback loop. |
+| **Non‑stationary fields** | Raw rain/temperature have huge seasonal swings the network wastes capacity learning. | Forecast **anomalies** vs a smoothed day‑of‑year climatology; predictions relax toward climate, never explode. |
+| **Beating a strong baseline** | Persistence‑of‑anomaly is already hard to beat; many ML models quietly lose to it. | **Residual learning** — the POA prior is fed in and added back via a zero‑init head, so the net only learns the *correction*. It matches‑or‑beats POA by construction. |
+| **Class imbalance in rain** | Most cells are dry most days; MSE collapses to "predict zero." | **Huber loss** + non‑negativity reconstruction + anomaly normalisation keep rare wet events in the gradient. |
+| **Area distortion of a lat/lon grid** | Equal‑pixel loss over‑weights the far north. | **Latitude‑area‑weighted, land‑masked** loss — every km² counts equally, oceans ignored. |
+| **Small‑GPU memory** | 6 GB can't hold large climate transformers. | A compact **7.4 M‑param** residual U‑Net + **mixed‑precision (AMP)** — trains comfortably on an RTX 4050. |
+| **Data leakage** | Climatology/normalisation computed over all years inflates scores. | Climatology and σ use **training years only (1981–2018)**; test years 2021–2024 are fully unseen. |
+
+> The net effect: a model that is **stable by design**, **honest by construction**, and **beats the
+> operational persistence baseline at every lead day** — on four years it never saw.
+
+---
+
 ## 🌳 Companion Model — XGBoost
 
 A second, complementary paradigm for **station‑level precision**, ensembled with ClimateUNet at city scale.
@@ -331,6 +375,12 @@ practice: **RMSE, MAE, Anomaly Correlation Coefficient (ACC)**, and **skill vs r
 and climatology. Full machine‑readable results in `outputs/eval_metrics.json`; skill curves in
 `outputs/skill_curves.png`.
 
+### How to read these numbers
+- **MAE / RMSE** — average error in real units (°C, mm/day); lower is better. RMSE punishes big misses harder.
+- **ACC (Anomaly Correlation Coefficient)** — how well the forecast captures the *pattern* of departures from normal; **> 0.6 = useful**, **> 0.8 = high skill**.
+- **Skill %** — improvement over a reference forecast: `100 × (1 − error_model / error_reference)`. Positive means VARUNA beats the baseline.
+- **Persistence** = "tomorrow looks like today." **Persistence‑of‑anomaly (POA)** = "today's departure from normal persists" — a genuinely strong meteorological baseline that VARUNA still beats on temperature.
+
 ---
 
 ## 🛰️ Digital‑Twin Assimilation
@@ -346,6 +396,25 @@ x_a = x_b + K (y − x_b),   K spreads the innovation per a spatially correlated
 With observations on the model grid this reduces to a covariance‑weighted, spatially‑smoothed
 innovation. The dashboard shows **RMSE‑to‑observation before vs after** assimilation, demonstrating
 the twin staying anchored to reality (`twin/assimilate.py`).
+
+**The living‑twin cycle** — observe → forecast → assimilate → repeat:
+
+```mermaid
+sequenceDiagram
+    participant OBS as IMD / INSAT observations
+    participant TWIN as VARUNA state x
+    participant AI as ClimateUNet
+    participant USER as Planner
+    OBS->>TWIN: ingest today's real fields
+    TWIN->>AI: 7-day window + POA prior
+    AI-->>TWIN: 10-day forecast (background x_b)
+    OBS->>TWIN: new observations y
+    TWIN->>TWIN: OI analysis  x_a = x_b + K(y - x_b)
+    TWIN-->>USER: corrected state + hazards
+    USER->>TWIN: what-if lever (ΔT, rain, greening…)
+    TWIN-->>USER: heat-stress & AQI impact maps
+    Note over OBS,TWIN: loop repeats as new data arrives
+```
 
 ---
 
@@ -412,6 +481,20 @@ that the what‑if scenarios then modify (e.g., *"summer 2026 under +2 °C"*).
 <td colspan="2"><img src="assets/ui-2.png" alt="Twin controls"/><br/><sub><b>Twin controls</b> — region, layer, date picker (1981→2026), lead day, scenario levers.</sub></td>
 </tr>
 </table>
+
+---
+
+## 🚶 A Walk Through the Twin
+
+A typical two‑minute session — every step is driven by the live model, nothing is pre‑rendered:
+
+1. **Pick a moment.** Choose a date (say *15 May 2024*) and a region (national or the South‑India pilot). VARUNA reconstructs that day's real climate state from IMD data.
+2. **Read the forecast.** The Climate‑Twin map shows the 10‑day AI outlook; slide the **lead‑day** control (1→10) and the field redraws instantly, with a region‑mean‑vs‑climatology evolution chart beside it.
+3. **Spot the hazards.** Flip to **Hazards & Extremes** — heatwave departure, heavy‑rain category and dry‑spell length are computed straight from the forecast.
+4. **Assimilate reality.** Open the **OI panel** to fuse observations into the state and watch RMSE‑to‑observation drop.
+5. **Ask "what if?"** In the **simulator**, push *+2 °C*, drier monsoon, more greening or cool roofs — the **heat‑stress** and **AQI** maps and their headline metrics update live.
+6. **Check the receipts.** **Validation & Skill** shows RMSE / ACC / skill on unseen years and the city forecast (observed → ClimateUNet → CNN+XGB ensemble).
+7. **Cross‑check from orbit.** **Satellite (INSAT)** overlays the real INSAT‑3DR LST and compares skin vs air temperature.
 
 ---
 
@@ -490,6 +573,30 @@ Every stage is self‑contained — **no pre‑baked artefacts, no synthetic fal
 
 ---
 
+## ☁️ Deployment
+
+VARUNA ships as a **Hugging Face Docker Space** and runs the very same `app.py` you run locally.
+
+| | |
+|---|---|
+| **Live Space** | https://huggingface.co/spaces/Aditya1002/VARUNA |
+| **Runtime** | Docker (`python:3.11-slim`), CPU PyTorch, Streamlit on port `7860` |
+| **What ships** | code + processed observations, climatology, model checkpoints, INSAT sample |
+| **What rebuilds at runtime** | the 500 MB anomaly cube is regenerated on boot from `obs/clim/stats` — keeps the image lean |
+| **One‑command deploy** | `python tools/deploy_hf.py` (set a write `HF_TOKEN`; SDK/front‑matter handled automatically) |
+
+```bash
+# deploy your own copy
+set HF_TOKEN=hf_xxx           # WRITE token from huggingface.co/settings/tokens
+set HF_SPACE=your-user/VARUNA # optional; defaults to <user>/VARUNA
+python tools/deploy_hf.py
+```
+
+The Dockerfile installs the CPU PyTorch wheel first (small image), keeps cache dirs writable, and
+launches Streamlit headless — so CPU‑only inference works out of the box on the free Space tier.
+
+---
+
 ## 🔍 Honest Framing
 
 We state our boundaries plainly — credibility matters in front of ISRO scientists:
@@ -530,6 +637,59 @@ We state our boundaries plainly — credibility matters in front of ISRO scienti
 
 ---
 
+## ❓ FAQ
+
+**Is any of this data synthetic or simulated?**
+No. Every field comes from real **IMD** gridded observations (1981–2024) and a real **INSAT‑3DR** L2B
+product. There is no synthetic data, no fabricated fallback, anywhere in the pipeline.
+
+**Why anomalies instead of raw rainfall and temperature?**
+Raw fields are dominated by the seasonal cycle. By forecasting the *departure from climatology* the
+model spends its capacity on the predictable signal, and rollouts relax toward climate instead of
+drifting off — the key to multi‑day stability.
+
+**Why does rainfall skill (ACC ≈ 0.40) look lower than temperature?**
+Day‑to‑day rainfall is intrinsically chaotic — even operational global centres struggle past a few
+days. We report it honestly. Temperature, which is far more predictable, reaches ACC **0.76**.
+
+**Can it really forecast 2025 or 2026?**
+Those dates render an explicitly‑labelled **climatological projection** that the what‑if scenarios
+then modify. We never present future years as literal day‑by‑day weather forecasts.
+
+**Do I need a GPU to run it?**
+To *train*, yes (any modern NVIDIA card; it was built on a 6 GB RTX 4050). To *run the dashboard*,
+no — the deployed Hugging Face Space does CPU‑only inference.
+
+**How long does the full pipeline take?**
+Data prep downloads ~44 years of IMD grids (one‑time, network‑bound); training the ClimateUNet is a
+matter of hours on a single laptop GPU thanks to the compact architecture and mixed precision.
+
+**How is this different from a weather app?**
+A weather app *shows* a forecast. VARUNA is a **digital twin** — it reconstructs the state, forecasts,
+assimilates real observations back in, and lets you simulate interventions and see their downstream
+impact on heat and air quality.
+
+---
+
+## 📖 Glossary
+
+| Term | Meaning |
+|---|---|
+| **Digital twin** | A continuously‑updated virtual replica of a real system (here, India's climate) used to monitor, forecast and simulate. |
+| **Anomaly** | A field's departure from its day‑of‑year climatological normal. |
+| **Climatology** | The long‑term average state for each day of the year (built from training years only). |
+| **POA** | Persistence‑of‑anomaly — the baseline that assumes today's anomaly persists; also the model's physics prior. |
+| **ACC** | Anomaly Correlation Coefficient — pattern correlation of forecast vs observed anomalies. |
+| **OI** | Optimal Interpolation — the data‑assimilation step fusing observations into the model state via a background‑error covariance. |
+| **LST** | Land Surface Temperature — the satellite "skin" temperature from INSAT‑3DR. |
+| **UHI** | Urban Heat Island — the extra warmth of built‑up areas captured by the surface‑energy proxy. |
+| **AQI** | Air Quality Index — CPCB PM2.5 sub‑index used in the what‑if air‑quality map. |
+| **Regrid** | Interpolating one grid (1° temperature) onto another (0.25° rainfall) for a common national grid. |
+| **AMP** | Automatic Mixed Precision — float16/32 training that saves GPU memory and time. |
+| **SE attention** | Squeeze‑and‑Excite — lightweight channel attention that reweights feature maps. |
+
+---
+
 ## 📚 Citations & License
 
 - IMD gridded rainfall 0.25° — *Pai et al. (2014), MAUSAM 65(1)*.
@@ -538,6 +698,15 @@ We state our boundaries plainly — credibility matters in front of ISRO scienti
 - India weather ML benchmarks — **BharatBench**, **IndiaWeatherBench** (IMDAA reanalysis).
 
 **Data policy:** Real national datasets only. No synthetic or fabricated data anywhere in the pipeline.
+
+---
+
+## 🙏 Acknowledgements
+
+- **India Meteorological Department (IMD), Pune** — for the open, high‑resolution gridded rainfall and temperature archives that make a national twin possible.
+- **ISRO / Space Applications Centre (SAC) & MOSDAC** — for INSAT‑3DR Level‑2B Earth‑observation products.
+- **The open‑source scientific Python ecosystem** — `imdlib`, PyTorch, XGBoost, xarray, SciPy, Streamlit and Plotly.
+- **ISRO Bharatiya Antariksh Hackathon (BAH) 2026** — for Problem Statement #5 and the push toward indigenous, Atmanirbhar climate intelligence.
 
 ---
 
