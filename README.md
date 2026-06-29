@@ -1,29 +1,3 @@
----
-title: VARUNA
-emoji: 🛰️
-colorFrom: indigo
-colorTo: red
-sdk: streamlit
-sdk_version: 1.40.0
-app_file: app.py
-pinned: true
-license: mit
-short_description: AI Digital Twin of India's Climate — IMD + INSAT, real data only
----
-
----
-title: VARUNA - AI Digital Twin of India's Climate
-emoji: 🛰️
-colorFrom: indigo
-colorTo: red
-sdk: streamlit
-sdk_version: 1.56.0
-app_file: app.py
-pinned: true
-license: mit
-short_description: AI Digital Twin of India's Climate - ISRO BAH 2026 (PS#5)
----
-
 <div align="center">
 
 # 🛰️ VARUNA
@@ -565,7 +539,9 @@ We state our boundaries plainly — credibility matters in front of ISRO scienti
 
 ---
 
-## 👥 Team VARUNA
+## 👥 Team Vandalizers
+
+**Project: VARUNA** · Team: **Vandalizers**
 
 | Member |
 |---|
@@ -580,6 +556,6 @@ We state our boundaries plainly — credibility matters in front of ISRO scienti
 ---
 
 ### 🛰️ VARUNA — Atmanirbhar climate intelligence on India's own data.
-*Team VARUNA — Aditya Pandey · Palak Rai · Avik Srivastava · ISRO BAH 2026 · PS#5*
+*Team Vandalizers — Aditya Pandey · Palak Rai · Avik Srivastava · ISRO BAH 2026 · PS#5*
 
 </div>
