@@ -12,6 +12,8 @@
 [![Coverage](https://img.shields.io/badge/Coverage-National%200.25%C2%B0-1E5BFF)](#-data-sources)
 [![Data Policy](https://img.shields.io/badge/Synthetic%20data-NONE-2DC937)](#-honest-framing)
 
+[![Live Demo](https://img.shields.io/badge/%F0%9F%A4%97%20Live%20Demo-Hugging%20Face%20Space-FFD21E)](https://huggingface.co/spaces/Aditya1002/VARUNA)
+
 *Real data only · trained on‑device · reproducible end‑to‑end · nothing fake, nothing static.*
 
 </div>
@@ -37,7 +39,7 @@ simulate* — so a planner can see today's climate state, a 10‑day outlook, th
 and the downstream effect of an intervention **before spending a single rupee**. It is built to be
 **Atmanirbhar** (self‑reliant): every byte of data and every model weight is Indian and on‑device.
 
-> 🔗 **Repository:** https://github.com/Aditya060806/VARUNA · **Deploy:** Hugging Face Spaces (Streamlit) — config‑ready.
+> 🔗 **Repository:** https://github.com/Aditya060806/VARUNA · **Live demo:** https://huggingface.co/spaces/Aditya1002/VARUNA (Hugging Face Space, Docker).
 
 ---
 

@@ -23,9 +23,8 @@ title: VARUNA - AI Digital Twin of India's Climate
 emoji: 🛰️
 colorFrom: indigo
 colorTo: red
-sdk: streamlit
-sdk_version: 1.56.0
-app_file: app.py
+sdk: docker
+app_port: 7860
 pinned: true
 license: mit
 short_description: AI Digital Twin of India's Climate - ISRO BAH 2026 (PS#5)
@@ -58,9 +57,9 @@ def main():
         space = f"{user}/VARUNA"
     print(f"[deploy] target Space: {space}")
 
-    create_repo(space, repo_type="space", space_sdk="streamlit",
+    create_repo(space, repo_type="space", space_sdk="docker",
                 exist_ok=True, token=token)
-    print("[deploy] Space ready. Uploading project (LFS handled automatically)…")
+    print("[deploy] Space ready. Uploading project (LFS handled automatically)...")
 
     upload_folder(repo_id=space, repo_type="space", folder_path=ROOT,
                   ignore_patterns=IGNORE, token=token,
@@ -73,7 +72,7 @@ def main():
                     repo_id=space, repo_type="space",
                     commit_message="Add HF Space front-matter")
 
-    print(f"\n[deploy] DONE → https://huggingface.co/spaces/{space}")
+    print(f"\n[deploy] DONE -> https://huggingface.co/spaces/{space}")
     print("The Space will build (install requirements, then launch). First build "
           "takes a few minutes.")
 
