@@ -6,18 +6,18 @@
 
 *ISRO Bharatiya Antariksh Hackathon (BAH) 2026 · Problem Statement #5*
 
-[![Data](https://img.shields.io/badge/Data-IMD%20%2B%20INSAT--3DR-2DD4BF)](#-data-sources)
-[![Model](https://img.shields.io/badge/Model-ClimateUNet%20%2B%20XGBoost-FF7B00)](#-the-ai-model--climateunet)
-[![Framework](https://img.shields.io/badge/PyTorch-CUDA-EE4C2C)](#-technology-stack)
-[![Coverage](https://img.shields.io/badge/Coverage-National%200.25%C2%B0-1E5BFF)](#-data-sources)
-[![Data Policy](https://img.shields.io/badge/Synthetic%20data-NONE-2DC937)](#-honest-framing)
+[![Data](https://img.shields.io/badge/Data-IMD%20%2B%20INSAT--3DR-2DD4BF)](#data-sources)
+[![Model](https://img.shields.io/badge/Model-ClimateUNet%20%2B%20XGBoost-FF7B00)](#the-ai-model--climateunet)
+[![Framework](https://img.shields.io/badge/PyTorch-CUDA-EE4C2C)](#technology-stack)
+[![Coverage](https://img.shields.io/badge/Coverage-National%200.25%C2%B0-1E5BFF)](#data-sources)
+[![Data Policy](https://img.shields.io/badge/Synthetic%20data-NONE-2DC937)](#honest-framing)
 
 [![Live Demo](https://img.shields.io/badge/%F0%9F%A4%97%20Live%20Demo-Hugging%20Face%20Space-FFD21E)](https://huggingface.co/spaces/Aditya1002/VARUNA)
 [![Status](https://img.shields.io/badge/Status-Live-2DC937)](https://huggingface.co/spaces/Aditya1002/VARUNA)
-[![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)](#-technology-stack)
-[![Streamlit](https://img.shields.io/badge/Streamlit-1.56-FF4B4B?logo=streamlit&logoColor=white)](#-the-dashboard)
-[![License](https://img.shields.io/badge/License-MIT-blue)](#-citations--license)
-[![Reproducible](https://img.shields.io/badge/Pipeline-prepare%E2%86%92train%E2%86%92eval%E2%86%92serve-7E57C2)](#-quickstart--reproduce)
+[![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)](#technology-stack)
+[![Streamlit](https://img.shields.io/badge/Streamlit-1.56-FF4B4B?logo=streamlit&logoColor=white)](#the-dashboard)
+[![License](https://img.shields.io/badge/License-MIT-blue)](#citations--license)
+[![Reproducible](https://img.shields.io/badge/Pipeline-prepare%E2%86%92train%E2%86%92eval%E2%86%92serve-7E57C2)](#quickstart--reproduce)
 
 *Real data only · trained on‑device · reproducible end‑to‑end · nothing fake, nothing static.*
 
@@ -44,9 +44,9 @@ simulate* — so a planner can see today's climate state, a 10‑day outlook, th
 and the downstream effect of an intervention **before spending a single rupee**. It is built to be
 **Atmanirbhar** (self‑reliant): every byte of data and every model weight is Indian and on‑device.
 
-> 🔗 **Repository:** https://github.com/Aditya060806/VARUNA · **Live demo:** https://huggingface.co/spaces/Aditya1002/VARUNA (Hugging Face Space, Docker).
+> **Repository:** https://github.com/Aditya060806/VARUNA · **Live demo:** https://huggingface.co/spaces/Aditya1002/VARUNA (Hugging Face Space, Docker).
 
-### ⏱️ The 60‑second pitch
+### The 60‑second pitch
 > Point VARUNA at any day from **1981 to 2026** and it reconstructs India's climate state from real
 > IMD observations, fires a **10‑day rain + temperature forecast** from a GPU‑trained deep network,
 > blends in **INSAT‑3DR satellite** truth through **optimal‑interpolation assimilation**, flags the
@@ -60,38 +60,38 @@ and the downstream effect of an intervention **before spending a single rupee**.
 
 ---
 
-## 📑 Table of Contents
-1. [Highlights](#-highlights)
-2. [Problem Statement Alignment](#-problem-statement-alignment)
-3. [System Architecture](#-system-architecture)
-4. [Data Sources](#-data-sources)
-5. [Data Pipeline](#-data-pipeline)
-6. [The AI Model — ClimateUNet](#-the-ai-model--climateunet)
-7. [What Makes This Technically Hard](#-what-makes-this-technically-hard)
-8. [Companion Model — XGBoost](#-companion-model--xgboost)
-9. [Training Configuration](#-training-configuration)
-10. [Results & Validation](#-results--validation)
-11. [Digital‑Twin Assimilation](#-digital-twin-assimilation)
-12. [Connected Applications](#-connected-applications)
-13. [Satellite Integration (INSAT/MOSDAC)](#-satellite-integration-insatmosdac)
-14. [The Dashboard](#-the-dashboard)
-15. [A Walk Through the Twin](#-a-walk-through-the-twin)
-16. [Technology Stack](#-technology-stack)
-17. [Repository Structure](#-repository-structure)
-18. [Quickstart & Reproduce](#-quickstart--reproduce)
-19. [Deployment](#-deployment)
-20. [Honest Framing](#-honest-framing)
-21. [Scale‑up Roadmap](#-scale-up-roadmap)
-22. [Evaluation‑Parameter Map](#-evaluation-parameter-map)
-23. [FAQ](#-faq)
-24. [Glossary](#-glossary)
-25. [Citations & License](#-citations--license)
-26. [Acknowledgements](#-acknowledgements)
-27. [Team Vandalizers](#-team-vandalizers)
+## Table of Contents
+1. [Highlights](#highlights)
+2. [Problem Statement Alignment](#problem-statement-alignment)
+3. [System Architecture](#system-architecture)
+4. [Data Sources](#data-sources)
+5. [Data Pipeline](#data-pipeline)
+6. [The AI Model — ClimateUNet](#the-ai-model--climateunet)
+7. [What Makes This Technically Hard](#what-makes-this-technically-hard)
+8. [Companion Model — XGBoost](#companion-model--xgboost)
+9. [Training Configuration](#training-configuration)
+10. [Results & Validation](#results--validation)
+11. [Digital‑Twin Assimilation](#digital-twin-assimilation)
+12. [Connected Applications](#connected-applications)
+13. [Satellite Integration (INSAT/MOSDAC)](#satellite-integration-insatmosdac)
+14. [The Dashboard](#the-dashboard)
+15. [A Walk Through the Twin](#a-walk-through-the-twin)
+16. [Technology Stack](#technology-stack)
+17. [Repository Structure](#repository-structure)
+18. [Quickstart & Reproduce](#quickstart--reproduce)
+19. [Deployment](#deployment)
+20. [Honest Framing](#honest-framing)
+21. [Scale‑up Roadmap](#scale-up-roadmap)
+22. [Evaluation‑Parameter Map](#evaluation-parameter-map)
+23. [FAQ](#faq)
+24. [Glossary](#glossary)
+25. [Citations & License](#citations--license)
+26. [Acknowledgements](#acknowledgements)
+27. [Team Vandalizers](#team-vandalizers)
 
 ---
 
-## ✨ Highlights
+## Highlights
 
 | | Capability |
 |---|---|
@@ -105,7 +105,7 @@ and the downstream effect of an intervention **before spending a single rupee**.
 | 🗺️ | **Interactive dashboard** — six views, dark "orbital" theme, instant client‑side maps. |
 | ♻️ | **Fully reproducible** — `prepare → train → evaluate → serve`, all in one repo on a single GPU. |
 
-### 📌 At a Glance
+### At a Glance
 
 | | |
 |---|---|
@@ -120,7 +120,7 @@ and the downstream effect of an intervention **before spending a single rupee**.
 
 ---
 
-## 🎯 Problem Statement Alignment
+## Problem Statement Alignment
 
 PS#5 asks for *"a high‑fidelity, dynamic virtual replica of India's climate… integrating multi‑source
 national data… leveraging AI/ML and data assimilation… with applications for climate‑sensitive
@@ -140,7 +140,7 @@ sectors and a what‑if interface."* VARUNA implements every clause:
 
 ---
 
-## 🏗️ System Architecture
+## System Architecture
 
 ```mermaid
 flowchart LR
@@ -194,7 +194,7 @@ forecast frames {rain,tmax,tmin} × 10 lead days  (real units)
 
 ---
 
-## 🗃️ Data Sources
+## Data Sources
 
 All data is **real** and **national**. Ground data via [`imdlib`](https://imdlib.readthedocs.io/),
 satellite via [MOSDAC](https://www.mosdac.gov.in/).
@@ -220,7 +220,7 @@ satellite via [MOSDAC](https://www.mosdac.gov.in/).
 
 ---
 
-## ⚙️ Data Pipeline
+## Data Pipeline
 
 Implemented in `data/` — robust, cached, reproducible:
 
@@ -240,7 +240,7 @@ Implemented in `data/` — robust, cached, reproducible:
 
 ---
 
-## 🧠 The AI Model — ClimateUNet
+## The AI Model — ClimateUNet
 
 A modern, fully‑convolutional spatiotemporal forecaster designed for **stability** and **skill**.
 
@@ -280,7 +280,7 @@ flowchart TD
 
 ---
 
-## 🧗 What Makes This Technically Hard
+## What Makes This Technically Hard
 
 Climate forecasting is not "just another image task." These are the traps that sink naive models —
 and the concrete design choice in VARUNA that defuses each one.
@@ -300,7 +300,7 @@ and the concrete design choice in VARUNA that defuses each one.
 
 ---
 
-## 🌳 Companion Model — XGBoost
+## Companion Model — XGBoost
 
 A second, complementary paradigm for **station‑level precision**, ensembled with ClimateUNet at city scale.
 
@@ -316,7 +316,7 @@ A second, complementary paradigm for **station‑level precision**, ensembled wi
 
 ---
 
-## 🔧 Training Configuration
+## Training Configuration
 
 | Hyper‑parameter | Value |
 |---|---|
@@ -331,7 +331,7 @@ A second, complementary paradigm for **station‑level precision**, ensembled wi
 
 ---
 
-## 📊 Results & Validation
+## Results & Validation
 
 Evaluated on the **held‑out test years 2021–2024** (1,452 daily forecasts the model never saw),
 land‑masked and **latitude‑area‑weighted**, in **real‑world units**. Metrics follow operational NWP
@@ -383,7 +383,7 @@ and climatology. Full machine‑readable results in `outputs/eval_metrics.json`;
 
 ---
 
-## 🛰️ Digital‑Twin Assimilation
+## Digital‑Twin Assimilation
 
 VARUNA fuses observations into the AI state via **Optimal Interpolation (OI)** — the classical
 analysis step, beyond pointwise nudging:
@@ -418,7 +418,7 @@ sequenceDiagram
 
 ---
 
-## 🌐 Connected Applications
+## Connected Applications
 
 One climate state → three connected, climate‑sensitive applications (`scenario/engine.py`, `analytics/extremes.py`):
 
@@ -433,7 +433,7 @@ One climate state → three connected, climate‑sensitive applications (`scenar
 
 ---
 
-## 🔭 Satellite Integration (INSAT/MOSDAC)
+## Satellite Integration (INSAT/MOSDAC)
 
 Real **INSAT‑3DR** Level‑2B products are ingested through `data/insat.py`:
 
@@ -444,7 +444,7 @@ Real **INSAT‑3DR** Level‑2B products are ingested through `data/insat.py`:
 
 ---
 
-## 🗺️ The Dashboard
+## The Dashboard
 
 A dark "orbital" Streamlit + Plotly app (`app.py`) — instant client‑side maps with India state
 boundaries, smooth slider interaction (heavy panels isolated with `st.fragment`).
@@ -462,7 +462,7 @@ boundaries, smooth slider interaction (heavy panels isolated with `st.fragment`)
 forecast lead day (1–10). Dates beyond IMD data render an explicitly‑labelled **climatological projection**
 that the what‑if scenarios then modify (e.g., *"summer 2026 under +2 °C"*).
 
-### 🖼️ Dashboard Gallery
+### Dashboard Gallery
 
 <table>
 <tr>
@@ -484,7 +484,7 @@ that the what‑if scenarios then modify (e.g., *"summer 2026 under +2 °C"*).
 
 ---
 
-## 🚶 A Walk Through the Twin
+## A Walk Through the Twin
 
 A typical two‑minute session — every step is driven by the live model, nothing is pre‑rendered:
 
@@ -498,7 +498,7 @@ A typical two‑minute session — every step is driven by the live model, nothi
 
 ---
 
-## 🧰 Technology Stack
+## Technology Stack
 
 | Layer | Tools |
 |---|---|
@@ -510,7 +510,7 @@ A typical two‑minute session — every step is driven by the live model, nothi
 
 ---
 
-## 📂 Repository Structure
+## Repository Structure
 
 ```
 VARUNA/
@@ -552,7 +552,7 @@ VARUNA/
 
 ---
 
-## 🚀 Quickstart & Reproduce
+## Quickstart & Reproduce
 
 ```bash
 # 1. environment
@@ -573,7 +573,7 @@ Every stage is self‑contained — **no pre‑baked artefacts, no synthetic fal
 
 ---
 
-## ☁️ Deployment
+## Deployment
 
 VARUNA ships as a **Hugging Face Docker Space** and runs the very same `app.py` you run locally.
 
@@ -597,7 +597,7 @@ launches Streamlit headless — so CPU‑only inference works out of the box on 
 
 ---
 
-## 🔍 Honest Framing
+## Honest Framing
 
 We state our boundaries plainly — credibility matters in front of ISRO scientists:
 
@@ -613,7 +613,7 @@ We state our boundaries plainly — credibility matters in front of ISRO scienti
 
 ---
 
-## 🧭 Scale‑up Roadmap
+## Scale‑up Roadmap
 
 - **Foundation models:** fine‑tune **IBM‑NASA Prithvi‑WxC** / adapt **Pangu‑Weather** on **IMDAA / BharatBench** reanalysis for true medium‑range skill.
 - **Real assimilation:** ensemble Kalman filter / 4D‑Var with live INSAT + AWS feeds.
@@ -622,7 +622,7 @@ We state our boundaries plainly — credibility matters in front of ISRO scienti
 
 ---
 
-## 🧮 Evaluation‑Parameter Map
+## Evaluation‑Parameter Map
 
 | Parameter | Evidence in VARUNA |
 |---|---|
@@ -637,7 +637,7 @@ We state our boundaries plainly — credibility matters in front of ISRO scienti
 
 ---
 
-## ❓ FAQ
+## FAQ
 
 **Is any of this data synthetic or simulated?**
 No. Every field comes from real **IMD** gridded observations (1981–2024) and a real **INSAT‑3DR** L2B
@@ -671,7 +671,7 @@ impact on heat and air quality.
 
 ---
 
-## 📖 Glossary
+## Glossary
 
 | Term | Meaning |
 |---|---|
@@ -690,7 +690,7 @@ impact on heat and air quality.
 
 ---
 
-## 📚 Citations & License
+## Citations & License
 
 - IMD gridded rainfall 0.25° — *Pai et al. (2014), MAUSAM 65(1)*.
 - IMD gridded temperature 1.0° — *Srivastava et al. (2009), Atmos. Sci. Let.*
@@ -701,7 +701,7 @@ impact on heat and air quality.
 
 ---
 
-## 🙏 Acknowledgements
+## Acknowledgements
 
 - **India Meteorological Department (IMD), Pune** — for the open, high‑resolution gridded rainfall and temperature archives that make a national twin possible.
 - **ISRO / Space Applications Centre (SAC) & MOSDAC** — for INSAT‑3DR Level‑2B Earth‑observation products.
@@ -710,7 +710,7 @@ impact on heat and air quality.
 
 ---
 
-## 👥 Team Vandalizers
+## Team Vandalizers
 
 **Project: VARUNA** · Team: **Vandalizers**
 
@@ -726,7 +726,7 @@ impact on heat and air quality.
 
 ---
 
-### 🛰️ VARUNA — Atmanirbhar climate intelligence on India's own data.
+### VARUNA — Atmanirbhar climate intelligence on India's own data.
 *Team Vandalizers — Aditya Pandey · Palak Rai · Avik Srivastava · ISRO BAH 2026 · PS#5*
 
 </div>
